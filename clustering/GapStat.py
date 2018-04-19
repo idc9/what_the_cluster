@@ -11,6 +11,7 @@ from .clusterers import get_clusterer
 
 # TODO: implement seeds
 # TODO: give clusterer the option to return additional data
+# TODO: give user the ability to input pre-sampled reference distributions
 class GapStat(object):
 
     def __init__(self,
@@ -233,7 +234,7 @@ class GapStat(object):
 
         for b in range(self.B):
             # sample null reference distribution
-            X_null = self._sample_null_reference(b)
+            X_null = self._sample_null_reference()
 
             # cluster X_null for the specified n_clusters
             for i, n_clusters in enumerate(self.cluster_sizes):
