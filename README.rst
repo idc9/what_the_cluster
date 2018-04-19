@@ -1,4 +1,4 @@
-clustering
+what_the_cluster
 ----
 
 **author**: `Iain Carmichael`_
@@ -10,7 +10,7 @@ iain@unc.edu.
 Overview
 ========
 
-This package contains some algoritms to estimate the number of clusters for an arbitrary clustering algorithm.  While many of these can be found elsewhere (see below) for whatever reason I found it useful to implement differently in a way which is more useful for what I was doing. Hopefully you may find these useful.
+This package contains some algoritms to estimate the number of clusters for an arbitrary clustering algorithm.  While many of these can be found elsewhere (see below) for whatever reason I found it useful to them implement differently in a way which is more useful for what I was doing. Hopefully you find these useful as well.
 
 Currently implements
 

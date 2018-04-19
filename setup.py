@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 
 install_requires = ['numpy', 'networkx', 'sklearn']
 
-setup(name='clustering',
+setup(name='what_the_cluster',
       version='0.0.1',
       description='Methods to select the number of clusters',
       author='Iain Carmichael',
