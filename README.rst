@@ -80,24 +80,36 @@ Other Clustering Packages
 There are many other clustering packages out there including. This package overlaps a little bit with some of the below, basic python implementations, but does things the way I needed them done for my project. For example, the user can supply an aribtrary clustering algorithm implmented in python to this package.
 
 In python
+
 - sklearn's `clustering functionality`_
-- gap-stat (https://github.com/milesgranger/gap_statistic)
-- gapkmean (https://github.com/minddrummer/gap)
+
+- https://github.com/milesgranger/gap_statistic
+
+- https://github.com/minddrummer/gap
+
 - https://gist.github.com/michiexile/5635273
+
 - https://github.com/Zelazny7/gap-statistic
+
 - https://github.com/annoviko/pyclustering
+
 - https://github.com/topics/clustering-algorithm?l=python
 
 In R
+
 - https://cran.r-project.org/web/packages/cluster/cluster.pdf
+
 - http://had.co.nz/clusterfly/
+
 - https://github.com/nolanlab/Rclusterpp
+
 - https://github.com/bwrc/corecluster-r
+
 - http://danifold.net/fastcluster.html
 
 
 .. _Iain Carmichael: https://idc9.github.io/
 .. _the gap statistic: https://web.stanford.edu/~hastie/Papers/gap.pdf
-.. _these example notebooks: https://github.com/idc9/clustering/tree/master/doc
-.. _`https://github.com/idc9/clustering`: https://github.com/idc9/clustering
+.. _these example notebooks: https://github.com/idc9/what_the_cluster/tree/master/doc
+.. _`https://github.com/idc9/what_the_cluster`: https://github.com/idc9/what_the_cluster
 .. _clustering functionality: http://scikit-learn.org/stable/modules/clustering.html
