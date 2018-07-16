@@ -149,6 +149,16 @@ class GapStat(object):
         self.compute_n_cluster_estimate(method=self.gap_est_method)
         # return self.est_n_clusters # I think we don't want to return anything
 
+    @property
+    def est_cluster_memberships(self):
+        """
+        Returns the estimated cluster memberships
+        """
+        assert self.est_n_clusters is not None
+        est_cluster_size_ind = np.where(
+            np.array(self.cluster_sizes) == self.est_n_clusters)[0][0]
+        return self.obs_cluster_labels[:, est_cluster_size_ind]
+
     def set_obs_clusters(self, X, cluster_labels):
         """
 
@@ -370,7 +380,9 @@ class GapStat(object):
 
         # maybe include the estimated numer of clusters
         if include_est:
-            plt.axvline(x=self.est_n_clusters, color='red', label='estimate')
+            plt.axvline(x=self.est_n_clusters, color='red',
+                        label='estimated {} clusters'.
+                        format(self.est_n_clusters))
 
         # maybe include other possible estimates
         if include_possibilities:
@@ -383,7 +395,7 @@ class GapStat(object):
                 plt.axvline(x=n, color='blue', ls='dashed', lw=1, label=label)
                 label = ''  # HACK: get only one 'possibility' label to show up
 
-            plt.legend()
+        plt.legend()
 
     def save(self, fname, compress=True, include_data=False):
 
