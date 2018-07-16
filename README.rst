@@ -38,7 +38,7 @@ Example
     plt.scatter(X[:, 0], X[:, 1], c=y)
 
     # estimate number of clusters with the gap statistic
-    from clustering.GapStat import GapStat
+    from what_the_cluster.GapStat import GapStat
     gs = GapStat(clusterer='kmeans',  # an arbitrary clustering algorithm can be provided
              cluster_sizes=range(1, 11),
              ref_dist='uniform',  # either 'uniform' or 'svd'

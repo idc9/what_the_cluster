@@ -106,6 +106,8 @@ class GapStat(object):
         self.est_n_clusters = None
         self.possible_n_clusters = None
 
+        self.metadata = {}
+
     def estimate_n_clusters(self, X, cluster_labels=None,
                             U=None, D=None, V=None):
         """
@@ -383,8 +385,7 @@ class GapStat(object):
 
             plt.legend()
 
-    def save(self, fname, compress=True, include_data=False,
-             include_obs_cluster_labels=True):
+    def save(self, fname, compress=True, include_data=False):
 
         save_dict = {'ref_dist': self.ref_dist,
                      'B': self.B,
@@ -392,10 +393,12 @@ class GapStat(object):
                      'gap_est_method': self.gap_est_method,
                      'clusterer_name': self.clusterer_name,
                      'clusterer_kwargs': self.clusterer_kwargs,
+                     'obs_cluster_labels': self.obs_cluster_labels,
                      'obs_wcss':   self.obs_wcss,
                      'null_wcss_samples':   self.null_wcss_samples,
                      'est_n_clusters':   self.est_n_clusters,
-                     'possible_n_clusters':   self.possible_n_clusters}
+                     'possible_n_clusters':   self.possible_n_clusters,
+                     'metadata': self.metadata}
 
         if include_data:
             save_dict['X'] = self.X
@@ -407,11 +410,6 @@ class GapStat(object):
             save_dict['U'] = None
             save_dict['D'] = None
             save_dict['V'] = None
-
-        if include_obs_cluster_labels:
-            save_dict['obs_cluster_labels'] = self.obs_cluster_labels
-        else:
-            save_dict['obs_cluster_labels'] = None
 
         joblib.dump(save_dict,
                     filename=fname,
@@ -428,6 +426,8 @@ class GapStat(object):
                  B=load_dict['B'],
                  gap_est_method=load_dict['gap_est_method'])
 
+        GS.obs_cluster_labels = load_dict['obs_cluster_labels']
+
         GS.obs_wcss = load_dict['obs_wcss']
         GS.null_wcss_samples = load_dict['null_wcss_samples']
         GS.est_n_clusters = load_dict['est_n_clusters']
@@ -437,6 +437,8 @@ class GapStat(object):
         GS.U = load_dict['U']
         GS.D = load_dict['D']
         GS.V = load_dict['B']
+
+        GS.metadata = load_dict['metadata']
         return GS
 
     @classmethod
