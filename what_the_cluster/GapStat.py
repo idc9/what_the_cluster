@@ -4,10 +4,10 @@ import numpy as np
 
 from sklearn.externals import joblib
 
-from .gapstat_utils import get_pooled_wcss, estimate_n_clusters
-from .reference_dists import sample_svd_null, sample_uniform_null
-from .utils import _is_strictly_increasing, _count_none, svd_wrapper
-from .clusterers import get_clusterer
+from what_the_cluster.gapstat_utils import get_pooled_wcss, estimate_n_clusters
+from what_the_cluster.reference_dists import sample_svd_null, sample_uniform_null
+from what_the_cluster.utils import _is_strictly_increasing, _count_none, svd_wrapper
+from what_the_cluster.clusterers import get_clusterer
 
 # TODO: implement seeds
 # TODO: give clusterer the option to return additional data

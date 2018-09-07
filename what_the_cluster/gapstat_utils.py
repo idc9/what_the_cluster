@@ -2,7 +2,7 @@ from collections import Counter
 import numpy as np
 from sklearn.metrics.pairwise import euclidean_distances
 
-from .utils import _is_strictly_increasing
+from what_the_cluster.utils import _is_strictly_increasing
 
 
 def get_pooled_wcss(X, class_labels):
