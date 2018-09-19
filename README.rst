@@ -44,7 +44,7 @@ Example
              ref_dist='uniform',  # either 'uniform' or 'svd'
              B=10)  # number of samples from the reference null distribution
 
-    gs.estimate_n_clusters(X)
+    gs.fit(X)
     gs.plot_wcss_curves()
     gs.plot_gap()
 

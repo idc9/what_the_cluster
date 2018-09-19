@@ -1,8 +1,9 @@
 from math import sqrt
 import matplotlib.pyplot as plt
 import numpy as np
-
+import pandas as pd
 from sklearn.externals import joblib
+from scipy.sparse import issparse
 
 from what_the_cluster.gapstat_utils import get_pooled_wcss, estimate_n_clusters
 from what_the_cluster.reference_dists import sample_svd_null, sample_uniform_null
@@ -95,27 +96,35 @@ class GapStat(object):
         self.clusterer_kwargs = clusterer_kwargs
 
         # these attributes will be set later
-        self.X = None  # observed data
-        self.U = None  # U, D, V are SVD of X
-        self.D = None
-        self.V = None
+        # self.X = None  # observed data
+        # self.U = None  # U, D, V are SVD of X
+        # self.D = None
+        # self.V = None
 
-        self.obs_cluster_labels = None
-        self.obs_wcss = None
-        self.null_wcss_samples = None
-        self.est_n_clusters = None
-        self.possible_n_clusters = None
+        # self.obs_cluster_labels = None
+        # self.obs_wcss = None
+        # self.null_wcss_samples = None
+        # self.est_n_clusters = None
+        # self.possible_n_clusters = None
 
-        self.metadata = {}
+        # self.metadata = {}
 
-    def estimate_n_clusters(self, X, cluster_labels=None,
-                            U=None, D=None, V=None):
+    def get_params(self):
+        return {'clusterer': self.clusterer,
+                'clusterer_kwargs': self.clusterer_kwargs,
+                'cluster_sizes': self.cluster_sizes,
+                'ref_dist': self.ref_dist,
+                'B': self.B,
+                'gap_est_method': self.gap_est_method}
+
+    def fit(self, X, cluster_labels=None,
+            U=None, D=None, V=None):
         """
         Estimates the number of clusters using the gap statistic.
 
         Parameters
         ----------
-        X (matrix): the observed data
+        X (matrix): the observed data with observations on the rows.
 
         cluster_labels (None or matrix, observations x len(cluster_sizes)): matrix
             containing the observed cluster labels on the columns for each
@@ -129,25 +138,30 @@ class GapStat(object):
             details. These are only used if ref_dist = 'svd'. If they are not
             provided then will compute them.
         """
-        if cluster_labels is None:
-            self.compute_obs_clusters(X)
+        if type(X) == pd.DataFrame:
+            self.var_names = np.array(X.columns)
         else:
-            self.set_obs_clusters(X, cluster_labels)
+            self.var_names = np.array(range(X.shape[1]))
+
+        if not issparse(X):
+            X = np.array(X)
+
+        if cluster_labels is None:
+            cluster_labels = self.compute_obs_clusters(X)
+            assert cluster_labels.shape == (X.shape[0], len(self.cluster_sizes))
 
         if self.ref_dist == 'svd':
-            if _count_none(U, D, V) == 0:
-                self.set_svd_decomposition(U, D, V)
+            if _count_none(U, D, V) == 3:
+                U, D, V = svd_wrapper(X)
 
-            elif _count_none(U, D, V) == 3:
-                self.compute_svd_decomposition()
-
-            else:
+            elif _count_none(U, D, V) != 0:
                 raise ValueError('U, D, V must all be provided or be set to None')
 
-        self.compute_obs_wcss()
-        self.sample_ref_null_wcss()
+        self.obs_wcss = self.compute_obs_wcss(X, cluster_labels)
+        self.null_wcss_samples = self.sample_ref_null_wcss(X, U=U, D=D, V=V)
         self.compute_n_cluster_estimate(method=self.gap_est_method)
-        # return self.est_n_clusters # I think we don't want to return anything
+
+        return self
 
     @property
     def est_cluster_memberships(self):
@@ -159,22 +173,6 @@ class GapStat(object):
             np.array(self.cluster_sizes) == self.est_n_clusters)[0][0]
         return self.obs_cluster_labels[:, est_cluster_size_ind]
 
-    def set_obs_clusters(self, X, cluster_labels):
-        """
-
-        Parameters
-        ----------
-        X (matrix): the observed data
-
-        cluster_labels (matrix, observations x len(cluster_sizes)): matrix
-            containing the observed cluster labels on the columns for each
-            value of n_clusters
-        """
-        assert cluster_labels.shape == (X.shape[0], len(self.cluster_sizes))
-
-        self.X = X
-        self.obs_cluster_labels = cluster_labels
-
     def compute_obs_clusters(self, X):
 
         obs_cluster_labels = np.zeros((X.shape[0], len(self.cluster_sizes)))
@@ -182,79 +180,50 @@ class GapStat(object):
         for i, n_clusters in enumerate(self.cluster_sizes):
             obs_cluster_labels[:, i] = self.clusterer(X, n_clusters)
 
-        self.set_obs_clusters(X, obs_cluster_labels)
+        return obs_cluster_labels
 
-    def set_svd_decomposition(self, U, D, V):
-        """
-        Stores the SVD decomposition of X which is only used for the SVD
-        null reference distribution. U, D, V are the scores, singluar
-        values and loadings respectively. The user may have already commputed
-        the SVD of the observed data and can use this method to set it for
-        the GapStat object.
-
-        If X is a (n x d) matrix and r = min(n, d)
-            U must b a (n x r) matrix
-            D must be a list of length r
-            V must be a (d x r) matrix
-        D, and the columns of U, D must be sorted according to decreasing
-        singular values. See utils.svd_wrapper
-
-
-        Parameters
-        ----------
-        U, D, V are matrices described as above
-        """
-        assert U.shape == (self.X.shape[0], min(self.X.shape))
-        assert len(D) == min(self.X.shape)
-        assert V.shape == (self.X.shape[1], min(self.X.shape))
-
-        self.U = U
-        self.D = D
-        self.V = V
-
-    def compute_svd_decomposition(self):
-        U, D, V = svd_wrapper(self.X)
-        self.set_svd_decomposition(U, D, V)
-
-    def compute_obs_wcss(self):
+    def compute_obs_wcss(self, X, obs_cluster_labels):
         """
         Computes the within class sum of squres for the observed clusters.
         """
         n_cluster_sizes = len(self.cluster_sizes)
-        self.obs_wcss = np.zeros(n_cluster_sizes)
+        obs_wcss = np.zeros(n_cluster_sizes)
 
         for j in range(n_cluster_sizes):
             # make sure the number of unique cluster labels is equal to
             # the preported number of clusters
             # TODO: we might not want this restrictin
-            assert len(set(self.obs_cluster_labels[:, j])) \
+            assert len(set(obs_cluster_labels[:, j])) \
                 == self.cluster_sizes[j]
 
-            self.obs_wcss[j] = get_pooled_wcss(self.X,
-                                               self.obs_cluster_labels[:, j])
+            obs_wcss[j] = get_pooled_wcss(X, obs_cluster_labels[:, j])
 
-    def _sample_null_reference(self):
+        return obs_wcss
+
+    def sample_null_reference(self, X, U=None, D=None, V=None):
 
         if self.ref_dist == 'uniform':
-            return sample_uniform_null(self.X)
+            return sample_uniform_null(X)
         elif self.ref_dist == 'svd':
-            return sample_svd_null(self.X, self.U, self.D, self.V)
+            return sample_svd_null(X, U, D, V)
 
-    def sample_ref_null_wcss(self):
+    def sample_ref_null_wcss(self, X, U=None, D=None, V=None):
 
-        self.null_wcss_samples = np.zeros((len(self.cluster_sizes), self.B))
+        null_wcss_samples = np.zeros((len(self.cluster_sizes), self.B))
 
         for b in range(self.B):
             # sample null reference distribution
-            X_null = self._sample_null_reference()
+            X_null = self.sample_null_reference(X, U=U, D=D, V=V)
 
             # cluster X_null for the specified n_clusters
             for i, n_clusters in enumerate(self.cluster_sizes):
                 # cluster. null sample
                 null_cluster_labels = self.clusterer(X_null, n_clusters)
 
-                self.null_wcss_samples[i, b] = get_pooled_wcss(X_null,
-                                                               null_cluster_labels)
+                null_wcss_samples[i, b] = get_pooled_wcss(X_null,
+                                                          null_cluster_labels)
+
+        return null_wcss_samples
 
     @property
     def E_log_null_wcss_est(self):
@@ -399,65 +368,65 @@ class GapStat(object):
 
     def save(self, fname, compress=True, include_data=False):
 
-        save_dict = {'ref_dist': self.ref_dist,
-                     'B': self.B,
-                     'cluster_sizes': self.cluster_sizes,
-                     'gap_est_method': self.gap_est_method,
-                     'clusterer_name': self.clusterer_name,
-                     'clusterer_kwargs': self.clusterer_kwargs,
-                     'obs_cluster_labels': self.obs_cluster_labels,
-                     'obs_wcss':   self.obs_wcss,
-                     'null_wcss_samples':   self.null_wcss_samples,
-                     'est_n_clusters':   self.est_n_clusters,
-                     'possible_n_clusters':   self.possible_n_clusters,
-                     'metadata': self.metadata}
+        # save_dict = {'ref_dist': self.ref_dist,
+        #              'B': self.B,
+        #              'cluster_sizes': self.cluster_sizes,
+        #              'gap_est_method': self.gap_est_method,
+        #              'clusterer_name': self.clusterer_name,
+        #              'clusterer_kwargs': self.clusterer_kwargs,
+        #              'obs_cluster_labels': self.obs_cluster_labels,
+        #              'obs_wcss':   self.obs_wcss,
+        #              'null_wcss_samples':   self.null_wcss_samples,
+        #              'est_n_clusters':   self.est_n_clusters,
+        #              'possible_n_clusters':   self.possible_n_clusters,
+        #              'metadata': self.metadata}
 
-        if include_data:
-            save_dict['X'] = self.X
-            save_dict['U'] = self.U
-            save_dict['D'] = self.D
-            save_dict['V'] = self.V
-        else:
-            save_dict['X'] = None
-            save_dict['U'] = None
-            save_dict['D'] = None
-            save_dict['V'] = None
+        # if include_data:
+        #     save_dict['X'] = self.X
+        #     save_dict['U'] = self.U
+        #     save_dict['D'] = self.D
+        #     save_dict['V'] = self.V
+        # else:
+        #     save_dict['X'] = None
+        #     save_dict['U'] = None
+        #     save_dict['D'] = None
+        #     save_dict['V'] = None
 
-        joblib.dump(save_dict,
+        joblib.dump(self,
                     filename=fname,
                     compress=compress)
 
-    @classmethod
-    def load_from_dict(cls, load_dict):
+    # @classmethod
+    # def load_from_dict(cls, load_dict):
 
-        # initialize class
-        GS = cls(clusterer=load_dict['clusterer_name'],
-                 clusterer_kwargs=load_dict['clusterer_kwargs'],
-                 cluster_sizes=load_dict['cluster_sizes'],
-                 ref_dist=load_dict['ref_dist'],
-                 B=load_dict['B'],
-                 gap_est_method=load_dict['gap_est_method'])
+    #     # initialize class
+    #     GS = cls(clusterer=load_dict['clusterer_name'],
+    #              clusterer_kwargs=load_dict['clusterer_kwargs'],
+    #              cluster_sizes=load_dict['cluster_sizes'],
+    #              ref_dist=load_dict['ref_dist'],
+    #              B=load_dict['B'],
+    #              gap_est_method=load_dict['gap_est_method'])
 
-        GS.obs_cluster_labels = load_dict['obs_cluster_labels']
+    #     GS.obs_cluster_labels = load_dict['obs_cluster_labels']
 
-        GS.obs_wcss = load_dict['obs_wcss']
-        GS.null_wcss_samples = load_dict['null_wcss_samples']
-        GS.est_n_clusters = load_dict['est_n_clusters']
-        GS.possible_n_clusters = load_dict['possible_n_clusters']
+    #     GS.obs_wcss = load_dict['obs_wcss']
+    #     GS.null_wcss_samples = load_dict['null_wcss_samples']
+    #     GS.est_n_clusters = load_dict['est_n_clusters']
+    #     GS.possible_n_clusters = load_dict['possible_n_clusters']
 
-        GS.X = load_dict['X']
-        GS.U = load_dict['U']
-        GS.D = load_dict['D']
-        GS.V = load_dict['B']
+    #     GS.X = load_dict['X']
+    #     GS.U = load_dict['U']
+    #     GS.D = load_dict['D']
+    #     GS.V = load_dict['B']
 
-        GS.metadata = load_dict['metadata']
-        return GS
+    #     GS.metadata = load_dict['metadata']
+    #     return GS
 
     @classmethod
     def load(cls, fname):
-        load_dict = joblib.load(fname)
-
-        return cls.load_from_dict(load_dict)
+        # load_dict = joblib.load(fname)
+        # return cls.load_from_dict(load_dict)
+        return joblib.load(fname)
 
     @classmethod
     def from_precomputed_wcss(cls, cluster_sizes, obs_wcss,
